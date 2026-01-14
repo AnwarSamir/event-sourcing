@@ -1,0 +1,979 @@
+{
+	"info": {
+		"_postman_id": "event-sourcing-order-api-v2",
+		"name": "Event Sourcing - Order Lifecycle API",
+		"description": "Complete API collection for Order Lifecycle using Event Sourcing and CQRS patterns with Trigger-based recalculation system",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "event-sourcing"
+	},
+	"item": [
+		{
+			"name": "Order Lifecycle",
+			"item": [
+				{
+					"name": "1. Create Order",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.orderId) {",
+									"        pm.collectionVariables.set(\"orderId\", jsonData.orderId);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"orderId\": \"order_001\",\n    \"customerId\": \"customer_001\",\n    \"items\": [\n        {\n            \"productId\": \"prod_1\",\n            \"quantity\": 2,\n            \"price\": 99.99\n        },\n        {\n            \"productId\": \"prod_2\",\n            \"quantity\": 1,\n            \"price\": 49.99\n        }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/orders",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"orders"
+							]
+						},
+						"description": "Creates a new order. The orderId is optional - if not provided, a unique ID will be generated.\n\n**Event Generated:** OrderCreated"
+					},
+					"response": []
+				},
+				{
+					"name": "2. Prepare Order",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/orders/{{orderId}}/prepare",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"orders",
+								"{{orderId}}",
+								"prepare"
+							]
+						},
+						"description": "Marks the order as prepared. Order must be in CREATED status.\n\n**Event Generated:** OrderPrepared"
+					},
+					"response": []
+				},
+				{
+					"name": "3. Ship Order",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"trackingNumber\": \"TRACK123456789\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/orders/{{orderId}}/ship",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"orders",
+								"{{orderId}}",
+								"ship"
+							]
+						},
+						"description": "Ships the order with a tracking number. Order must be in PREPARED status.\n\n**Event Generated:** OrderShipped"
+					},
+					"response": []
+				},
+				{
+					"name": "4. Deliver Order",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/orders/{{orderId}}/deliver",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"orders",
+								"{{orderId}}",
+								"deliver"
+							]
+						},
+						"description": "Marks the order as delivered. Order must be in SHIPPED status.\n\n**Event Generated:** OrderDelivered"
+					},
+					"response": []
+				},
+				{
+					"name": "5. Start Feedback Window",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/orders/{{orderId}}/start-feedback-window",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"orders",
+								"{{orderId}}",
+								"start-feedback-window"
+							]
+						},
+						"description": "Starts the 14-day return window. Order must be DELIVERED. This makes the order returnable.\n\n**Event Generated:** FeedbackWindowStarted"
+					},
+					"response": []
+				},
+				{
+					"name": "6. Request Return",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"reason\": \"Changed my mind\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/orders/{{orderId}}/request-return",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"orders",
+								"{{orderId}}",
+								"request-return"
+							]
+						},
+						"description": "Requests a return for the order. Validates:\n- Order must be delivered\n- 14-day window must not have expired\n- Order must be returnable\n\n**Event Generated:** ReturnRequested"
+					},
+					"response": []
+				},
+				{
+					"name": "7. Receive Item Back",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"warehouseId\": \"warehouse_001\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/orders/{{orderId}}/receive-item-back",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"orders",
+								"{{orderId}}",
+								"receive-item-back"
+							]
+						},
+						"description": "Marks that the warehouse has received the returned item. Order must be in RETURN_REQUESTED status.\n\n**Event Generated:** ItemReceivedBack"
+					},
+					"response": []
+				},
+				{
+					"name": "8. Issue Refund",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"amount\": 99.99,\n    \"refundTransactionId\": \"refund_txn_001\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/orders/{{orderId}}/issue-refund",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"orders",
+								"{{orderId}}",
+								"issue-refund"
+							]
+						},
+						"description": "Issues a refund for the order. Order must be in ITEM_RECEIVED_BACK status.\n\n**Event Generated:** RefundIssued"
+					},
+					"response": []
+				}
+			],
+			"description": "Complete order lifecycle from creation to refund using Event Sourcing pattern"
+		},
+		{
+			"name": "Query Operations",
+			"item": [
+				{
+					"name": "Get All Orders",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response is an array\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.be.an('array');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/orders",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"orders"
+							]
+						},
+						"description": "Retrieves all orders from the read model (projection). Returns a list of orders with their current state."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Order by ID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response contains orderId\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('orderId');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/orders/{{orderId}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"orders",
+								"{{orderId}}"
+							]
+						},
+						"description": "Retrieves a specific order by ID from the read model."
+					},
+					"response": []
+				}
+			],
+			"description": "Read operations to query order state from projections"
+		},
+		{
+			"name": "Trigger System",
+			"item": [
+				{
+					"name": "Create Trigger (Schedule Future Delivery)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response contains triggerId\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('triggerId');",
+									"    pm.expect(jsonData).to.have.property('success');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"triggerId\": \"trigger_001\",\n    \"name\": \"order_update_delivery_date\",\n    \"aggregateId\": \"order_001\",\n    \"payload\": {\n        \"delivery_date\": \"01.02.2026\"\n    }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/triggers",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"triggers"
+							]
+						},
+						"description": "Creates a trigger for future processing. If delivery_date is in the future, the trigger will be scheduled. If delivery_date is today or in the past, it will be processed immediately.\n\n**Behavior:**\n- Future date → Stored in triggers table with status 'received'\n- Past/Today date → Processed immediately, events generated"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Trigger (Immediate Processing)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"triggerId\": \"trigger_002\",\n    \"name\": \"order_update_delivery_date\",\n    \"aggregateId\": \"order_001\",\n    \"payload\": {\n        \"delivery_date\": \"14.01.2026\"\n    }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/triggers",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"triggers"
+							]
+						},
+						"description": "Creates a trigger with today's date. This will be processed immediately and generate events.\n\n**Behavior:**\n- Date <= today → Events generated immediately\n- OrderDelivered event applied to aggregate"
+					},
+					"response": []
+				},
+				{
+					"name": "Process Scheduled Recalculations",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response contains processed count\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('processed');",
+									"    pm.expect(jsonData).to.have.property('success');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"date\": \"2026-02-01\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/triggers/recalculate",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"triggers",
+								"recalculate"
+							]
+						},
+						"description": "Manually triggers processing of scheduled recalculations. Finds all triggers where recalculation_date <= provided date (or today if not provided) and processes them. This is what the cron job calls.\n\n**Usage:**\n- Provide date in YYYY-MM-DD format\n- Processes all triggers scheduled for that date or earlier\n- Returns count of processed triggers"
+					},
+					"response": []
+				},
+				{
+					"name": "Process Scheduled Recalculations (Current Date)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/triggers/recalculate",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"triggers",
+								"recalculate"
+							]
+						},
+						"description": "Processes all scheduled triggers for today (current date/time).\n\n**Usage:**\n- Empty body uses current date/time\n- Processes all triggers where recalculation_date <= NOW()"
+					},
+					"response": []
+				}
+			],
+			"description": "Trigger-based recalculation system for handling time-sensitive events. Supports both immediate and scheduled processing."
+		},
+		{
+			"name": "Test Scenarios",
+			"item": [
+				{
+					"name": "Complete Happy Path",
+					"item": [
+						{
+							"name": "1. Create Order",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Status code is 201\", function () {",
+											"    pm.response.to.have.status(201);",
+											"});",
+											"",
+											"if (pm.response.code === 201) {",
+											"    var jsonData = pm.response.json();",
+											"    pm.collectionVariables.set(\"orderId\", jsonData.orderId);",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"orderId\": \"order_test_001\",\n    \"customerId\": \"customer_test_001\",\n    \"items\": [\n        {\n            \"productId\": \"prod_1\",\n            \"quantity\": 1,\n            \"price\": 99.99\n        }\n    ]\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/orders",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"orders"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "2. Prepare",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/orders/order_test_001/prepare",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"orders",
+										"order_test_001",
+										"prepare"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "3. Ship",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"trackingNumber\": \"TRACK_TEST_001\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/orders/order_test_001/ship",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"orders",
+										"order_test_001",
+										"ship"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "4. Deliver",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/orders/order_test_001/deliver",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"orders",
+										"order_test_001",
+										"deliver"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "5. Start Feedback Window",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/orders/order_test_001/start-feedback-window",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"orders",
+										"order_test_001",
+										"start-feedback-window"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "6. Request Return",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"reason\": \"Changed my mind\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/orders/order_test_001/request-return",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"orders",
+										"order_test_001",
+										"request-return"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "7. Receive Item Back",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"warehouseId\": \"warehouse_test_001\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/orders/order_test_001/receive-item-back",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"orders",
+										"order_test_001",
+										"receive-item-back"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "8. Issue Refund",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"amount\": 99.99,\n    \"refundTransactionId\": \"refund_test_001\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/orders/order_test_001/issue-refund",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"orders",
+										"order_test_001",
+										"issue-refund"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "9. Get Final State",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/orders/order_test_001",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"orders",
+										"order_test_001"
+									]
+								}
+							},
+							"response": []
+						}
+					],
+					"description": "Complete order lifecycle from creation to refund"
+				},
+				{
+					"name": "Test Return Validation - Before Delivery",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});",
+									"",
+									"pm.test(\"Error message contains validation\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.error).to.include('delivered');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"reason\": \"Test validation\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/orders/{{orderId}}/request-return",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"orders",
+								"{{orderId}}",
+								"request-return"
+							]
+						},
+						"description": "This should fail with: 'Cannot request return: Order has not been delivered yet'"
+					},
+					"response": []
+				},
+				{
+					"name": "Test Return Validation - Window Expired",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 400\", function () {",
+									"    pm.response.to.have.status(400);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"reason\": \"Test expired window\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/orders/{{orderId}}/request-return",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"orders",
+								"{{orderId}}",
+								"request-return"
+							]
+						},
+						"description": "This should fail if the 14-day window has expired"
+					},
+					"response": []
+				}
+			],
+			"description": "Pre-configured test scenarios with validation"
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		},
+		{
+			"key": "orderId",
+			"value": "order_001",
+			"type": "string"
+		}
+	]
+}
