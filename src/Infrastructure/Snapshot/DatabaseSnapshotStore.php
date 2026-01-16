@@ -32,7 +32,7 @@ class DatabaseSnapshotStore implements SnapshotStoreInterface
         $entity->setVersion($snapshot->getVersion());
 
         $this->entityManager->persist($entity);
-        $this->entityManager->flush();
+        // Note: flush() is handled by the transaction in OrderCommandHandler
     }
 
     public function get(string $aggregateId): ?DomainSnapshot

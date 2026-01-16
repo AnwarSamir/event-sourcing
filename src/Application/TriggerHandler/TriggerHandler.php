@@ -2,6 +2,7 @@
 
 namespace App\Application\TriggerHandler;
 
+use App\Application\Projection\OrderProjection;
 use App\Domain\Aggregate\OrderAggregate;
 use App\Domain\Aggregate\OrderRepository;
 use App\Domain\Event\DomainEvent;
@@ -18,6 +19,7 @@ class TriggerHandler
         private readonly TriggerProcessor $triggerProcessor,
         private readonly EventProcessor $eventProcessor,
         private readonly OrderRepository $orderRepository,
+        private readonly OrderProjection $projection,
         private readonly EntityManagerInterface $entityManager,
         private readonly TriggerRepository $triggerRepository
     ) {
@@ -25,61 +27,83 @@ class TriggerHandler
 
     public function handleTrigger(Trigger $trigger, string $aggregateId): void
     {
-        // Check for conflicting triggers and invalidate them
-        $conflictingTriggers = $this->triggerRepository->findConflictingTriggers($aggregateId, $trigger->getName());
-        foreach ($conflictingTriggers as $conflicting) {
-            $conflicting->markAsInvalidated();
+        // Begin transaction to ensure atomicity
+        $this->entityManager->beginTransaction();
+
+        try {
+            // Check for conflicting triggers and invalidate them
+            $conflictingTriggers = $this->triggerRepository->findConflictingTriggers($aggregateId, $trigger->getName());
+            foreach ($conflictingTriggers as $conflicting) {
+                $conflicting->markAsInvalidated();
+            }
+
+            // Process the trigger
+            $result = $this->triggerProcessor->process($trigger, $aggregateId);
+
+            // Persist trigger entity
+            $triggerEntity = new TriggerEntity();
+            $triggerEntity->setTriggerId($trigger->getId());
+            $triggerEntity->setAggregateId($aggregateId);
+            $triggerEntity->setName($trigger->getName());
+            $triggerEntity->setPayloadArray($trigger->getPayload());
+            $triggerEntity->setRecalculationDate($result->getNextRecalculationDate());
+            $triggerEntity->setStatus('received');
+
+            $this->entityManager->persist($triggerEntity);
+
+            // If recalculation is needed now, process immediately
+            if ($result->shouldRecalculateNow() && $result->hasEvents()) {
+                $this->applyEvents($aggregateId, $result->getEvents());
+                $triggerEntity->markAsApplied();
+            }
+
+            // Commit transaction: all changes saved atomically
+            $this->entityManager->flush();
+            $this->entityManager->commit();
+        } catch (\Exception $e) {
+            // Rollback on any error
+            $this->entityManager->rollback();
+            throw $e;
         }
-
-        // Process the trigger
-        $result = $this->triggerProcessor->process($trigger, $aggregateId);
-
-        // Persist trigger entity
-        $triggerEntity = new TriggerEntity();
-        $triggerEntity->setTriggerId($trigger->getId());
-        $triggerEntity->setAggregateId($aggregateId);
-        $triggerEntity->setName($trigger->getName());
-        $triggerEntity->setPayloadArray($trigger->getPayload());
-        $triggerEntity->setRecalculationDate($result->getNextRecalculationDate());
-        $triggerEntity->setStatus('received');
-
-        $this->entityManager->persist($triggerEntity);
-
-        // If recalculation is needed now, process immediately
-        if ($result->shouldRecalculateNow() && $result->hasEvents()) {
-            $this->applyEvents($aggregateId, $result->getEvents());
-            $triggerEntity->markAsApplied();
-        }
-
-        $this->entityManager->flush();
     }
 
     public function processScheduledRecalculation(\DateTimeImmutable $now): int
     {
-        $triggers = $this->triggerRepository->findTriggersForRecalculation($now);
-        $processed = 0;
+        // Begin transaction to ensure atomicity
+        $this->entityManager->beginTransaction();
 
-        foreach ($triggers as $triggerEntity) {
-            // Re-process the trigger
-            $trigger = new Trigger(
-                id: $triggerEntity->getTriggerId(),
-                name: $triggerEntity->getName(),
-                payload: $triggerEntity->getPayloadArray(),
-                receivedAt: $triggerEntity->getReceivedAt()
-            );
+        try {
+            $triggers = $this->triggerRepository->findTriggersForRecalculation($now);
+            $processed = 0;
 
-            $result = $this->triggerProcessor->process($trigger, $triggerEntity->getAggregateId());
+            foreach ($triggers as $triggerEntity) {
+                // Re-process the trigger
+                $trigger = new Trigger(
+                    id: $triggerEntity->getTriggerId(),
+                    name: $triggerEntity->getName(),
+                    payload: $triggerEntity->getPayloadArray(),
+                    receivedAt: $triggerEntity->getReceivedAt()
+                );
 
-            if ($result->hasEvents()) {
-                $this->applyEvents($triggerEntity->getAggregateId(), $result->getEvents());
-                $triggerEntity->markAsApplied();
-                $processed++;
+                $result = $this->triggerProcessor->process($trigger, $triggerEntity->getAggregateId());
+
+                if ($result->hasEvents()) {
+                    $this->applyEvents($triggerEntity->getAggregateId(), $result->getEvents());
+                    $triggerEntity->markAsApplied();
+                    $processed++;
+                }
             }
+
+            // Commit transaction: all changes saved atomically
+            $this->entityManager->flush();
+            $this->entityManager->commit();
+
+            return $processed;
+        } catch (\Exception $e) {
+            // Rollback on any error
+            $this->entityManager->rollback();
+            throw $e;
         }
-
-        $this->entityManager->flush();
-
-        return $processed;
     }
 
     private function applyEvents(string $aggregateId, array $events): void
@@ -96,8 +120,16 @@ class TriggerHandler
             $aggregate->handle($this->eventToCommand($event));
         }
 
-        // Save aggregate
+        // Get uncommitted events before saving
+        $uncommittedEvents = $aggregate->getUncommittedEvents();
+
+        // Save aggregate (events persisted, but not flushed yet)
         $this->orderRepository->save($aggregate);
+
+        // Update projection with new events (read model persisted, but not flushed yet)
+        foreach ($uncommittedEvents as $event) {
+            $this->projection->handle($event);
+        }
     }
 
     private function eventToCommand(DomainEvent $event): \App\Domain\Command\Command

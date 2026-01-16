@@ -33,7 +33,7 @@ class OrderReadModelRepository extends ServiceEntityRepository
     {
         $entity->setUpdatedAt(new \DateTimeImmutable());
         $this->getEntityManager()->persist($entity);
-        $this->getEntityManager()->flush();
+        // Note: flush() is handled by the transaction in OrderCommandHandler
     }
 
     public function delete(string $orderId): void

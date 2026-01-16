@@ -25,7 +25,7 @@ class DatabaseEventStore implements EventStoreInterface
         $entity->setSequence($this->repository->getNextSequence());
 
         $this->entityManager->persist($entity);
-        $this->entityManager->flush();
+        // Note: flush() is handled by the transaction in OrderCommandHandler
     }
 
     public function getEvents(string $aggregateId): array

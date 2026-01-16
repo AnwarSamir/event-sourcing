@@ -74,18 +74,7 @@ sqlite3 var/data.db "SELECT order_id, status, version FROM order_snapshots;"
 3. **Scalability**: Can handle large volumes of events
 4. **Queryability**: Can query events by type, date, aggregate, etc.
 5. **Backup**: Database can be backed up and restored
-
-## Switching Back to In-Memory (if needed)
-
-To switch back to in-memory storage, update `config/services.yaml`:
-
-```yaml
-App\Infrastructure\EventStore\EventStoreInterface:
-    class: App\Infrastructure\EventStore\InMemoryEventStore
-
-App\Infrastructure\Snapshot\SnapshotStoreInterface:
-    class: App\Infrastructure\Snapshot\InMemorySnapshotStore
-```
+6. **Production Ready**: All data is persisted, no in-memory storage
 
 ## Performance Considerations
 
